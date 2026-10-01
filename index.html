@@ -49,6 +49,33 @@
       var fill = document.getElementById("fill"), msg = document.getElementById("msg"), mi = 0;
       var ticker = setInterval(function () { mi = (mi + 1) % msgs.length; msg.textContent = msgs[mi]; }, 1400);
 
+      // Fullscreen on PLAY: browsers only allow it inside a user gesture, so we request it on the first tap
+      // (the whole title screen is the PLAY button). On touch devices we re-enter it on later taps too, so a
+      // kid who accidentally leaves fullscreen gets it back. iPhone Safari has no fullscreen API: nothing happens.
+      function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+      function lockLandscape() {
+        try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {}); } catch (e) {}
+      }
+      function goFullscreen() {
+        if (isFullscreen()) return;
+        var el = document.documentElement;
+        var req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) return;
+        try {
+          var p = req.call(el, { navigationUI: "hide" });
+          if (p && p.then) p.then(lockLandscape).catch(function () {}); else lockLandscape();
+        } catch (e) {}
+      }
+      function enableAutoFullscreen() {
+        var first = true;
+        document.addEventListener("pointerup", function (e) {
+          if (first || e.pointerType === "touch") goFullscreen();
+          first = false;
+        }, true);
+        // Older iOS/iPadOS Safari without pointer events.
+        document.addEventListener("touchend", function () { goFullscreen(); }, true);
+      }
+
       // Cap the render resolution: tablets have 2-3x DPR which would tank the frame rate.
       var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
@@ -69,6 +96,7 @@
         fill.style.width = "100%";
         document.getElementById("loader").classList.add("done");
         window.unityInstance = unityInstance;
+        enableAutoFullscreen();
       }).catch(function (message) {
         clearInterval(ticker);
         msg.textContent = "Oops! Please reload the page.";
